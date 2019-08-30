@@ -10,7 +10,9 @@ In fact, it's due this simplicity that we started using it as our main database 
 
 As it keeps growing in popularity ([Kaggle](https://www.kaggle.com/dansbecker/getting-started-with-sql-and-bigquery) has already integrated its challenges datasets with BigQuery), knowing how to make good use of the tool can turn out to be a strong competitive advantage for undertaking new ideas and projects.
 
-For what it follows, we'll give a brief overview of its architecture; this is not mandatory in order to understand BigQuery and we wrote it more for those who are curious. If you want to skip straight to action, please refer to section [x.x](#architecture).
+For what it follows, we'll give a brief overview of its architecture; this is not mandatory in order to understand BigQuery and we wrote it more for those who are curious. 
+
+If you want to skip straight into action, please refer to [Class 02](../Class02_Arrays_And_Structs/README.md).
 
 ## Architecture
 
@@ -157,35 +159,50 @@ By "efficient" we mean processing the most information with the least amount of 
 
 ### Dremel
 
-Probably Dremel could be considered sort of like "the brain" of the whole thing. Colossus stores all of our data using Capacitor files; when queried over, they are brought to the processing server through the Jupyter network. Now, the one managing who process what, when and how is Dremel.
+Dremel could be considered the "brain" of the whole thing. Colossus stores all of our data using Capacitor files; when queried over, they are brought to the processing server through the Jupyter network. Now, the one orchestrating the whole process is Dremel.
 
-Funny thing is, it also works by building a tree like structure with different servers on each branch; it all starts in the root server that receives our query. 
+Interesting thing is, it also works by building a tree like structure leveraging different servers to handle parts of the dataset, as shown below:
 
-Say, using our previous example data, that we sent a query like (not a valid query, just for learning purpose):
+<p align="center">
+  <img src="./images/dremel.png">
+</p>
+
+Let's use the following query as an example:
 
 ```sql
 SELECT
   Country,
   COUNT(Country) AS freq
 FROM `table`
+GROUP BY 1
 ```
 
-That query would first be sent to Dremel in a root server.
+That query would first be sent to Dremel in a root server; it then divides the query into different servers known as the "Mixers" which works with specifics shards; processing is finally handled to leaf node servers that have access to Colossus storage. 
 
-This node then divides the query into different servers known as the "Mixers" which works with specifics shards; processing is finally handled to leaf node servers that have access to Colossus. Results are then brought back to mixers where operations such as aggretation or filtering happens and the cycle repeats through the root server until final result is consolidated:
+Results are then brought back to mixers where operations such as aggretation or filtering happens and the cycle repeats through the root server until final result is consolidated:
 
 <p align="center">
   <img src="./images/leaf_nodes.png">
 </p>
 
-Notice that the paradigm is to actually bring hardware to data: the more demanding the query is, the more mixers and leaf nodes are brought together to process the query.
+Joins, aggregations and analytical functions requires data [shuffling](https://cloud.google.com/blog/products/gcp/in-memory-query-execution-in-google-bigquery) operations which is basically grouping together rows from different leaf servers into the appropriate parent server; it tends to be the main bottleneck in many distributed services so it's important to know how to optimize it (this is where using nested data will give us great advantages as it helps in the shuffling phase).
 
-Each application running on the leaf nodes have a certain number of threads: each *thread* is called a *slot*.
+It's been implemented in BigQuery by making great use of the Jupiter network; Google's approach is to process the whole dataset in-memory using a flexible API defined by *consumers* and *producers* that exchanges data with remote memory servers:
 
-This is important to keep in mind: BigQuery service comes with 2000 slots available for processing your demands (while it's still possible to increase this value by getting in contact with Google representatives, if you know how to properly use BigQuery that chances of you needing that is extremely low).
+<p align="center">
+  <img src="./images/shuffle_bq.png">
+</p>
 
-As we'll be studying soon, the less optimized are the queries we send against BigQuery, the more slots will be required for the processing step which may, eventually, stop the tool from working optimally and slower its operations.
+Notice the paradigm is to bring hardware to data: the more demanding the query is the more mixers and leaf nodes are used to process the query.
 
-One of the best techniques for being effective in BigQuery is to deeply understand how to leverage its nested data paradigm. In fact, let's start some hands-on experience now.
+Each application running on the leaf nodes have a certain number of threads: each *thread* is called a *slot*. Keep in mind that BigQuery service comes with 2000 slots available for processing your project demands (while it's still possible to increase this value, if you know how to properly use the database chances of you needing that is minimum).
 
-Enough with introduction and concepts, time for getting our hands dirty. Let's move on to [Class 02](../Class02_Arrays_And_Structs/README.md) where we'll start learning about Arrays and Structs!
+The less optimized are the queries sent against BigQuery (usually this means more data being shuffled between servers) the more slots will be required for processing them which might slown down all other jobs.
+
+As shown, main bottleneck tends to be the shuffling step and Google definitely knows how to process massive datasets as efficiently as possible; one of the best techniques for being effective in BigQuery is to better understand how to leverage its nested data paradigm which basically already saves everything needed for computation in a single row. This avoids needing to look for parts of data in other servers as it's already available on each row emission.
+
+In fact, the concept is so important, it's time to dive in a little bit into practicing it. 
+
+Enough with introduction and concepts, time for getting our hands dirty!
+
+Let's move on to [Class 02](../Class02_Arrays_And_Structs/README.md) where we'll start learning about Arrays and Structs!
