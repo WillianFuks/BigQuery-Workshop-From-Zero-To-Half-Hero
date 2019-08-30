@@ -10,7 +10,9 @@ In fact, it's due this simplicity that we started using it as our main database 
 
 As it keeps growing in popularity ([Kaggle](https://www.kaggle.com/dansbecker/getting-started-with-sql-and-bigquery) has already integrated its challenges datasets with BigQuery), knowing how to make good use of the tool can turn out to be a strong competitive advantage for undertaking new ideas and projects.
 
-For what it follows, we'll give a brief overview of its architecture; this is not mandatory in order to understand BigQuery and we wrote it more for those who are curious. If you want to skip straight to action, please refer to section [x.x](#architecture).
+For what it follows, we'll give a brief overview of its architecture; this is not mandatory in order to understand BigQuery and we wrote it more for those who are curious. 
+
+If you want to skip straight into action, please refer to [Class 02](../Class02_Arrays_And_Structs/README.md).
 
 ## Architecture
 
