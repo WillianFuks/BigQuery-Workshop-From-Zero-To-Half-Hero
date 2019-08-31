@@ -25,7 +25,14 @@ FROM `data`
 
 You'll get something like this:
 
+<p align="center">
+  <img src="./images/ex1.png">
+</p>
 
+Notice the response can be represented as a JSON:
 
+<p align="center">
+  <img src="./images/ex1_json.png">
+</p>
 
 
