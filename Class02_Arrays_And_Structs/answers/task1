@@ -1,0 +1,10 @@
+WITH `data` AS (
+  SELECT 1 AS user_id, 3 AS total_pageviews, 0 AS total_clicks, ['page1', 'page2', 'page3'] AS pages, [TIMESTAMP('2019-01-01 00:00:00'), TIMESTAMP('2019-01-01 00:01:00'), TIMESTAMP('2019-01-01 00:01:15')] AS time, ['home', 'catalog', 'catalog'] AS page_type UNION ALL
+  SELECT 2, 5, 1, ['page1', 'page2', 'page3', 'page4', 'page5'], [TIMESTAMP('2019-01-01 00:00:00'), TIMESTAMP('2019-01-01 00:01:00'), TIMESTAMP('2019-01-01 00:02:00'), TIMESTAMP('2019-01-01 00:03:00'), TIMESTAMP('2019-01-01 00:04:00')], ['home', 'catalog', 'catalog', 'catalog', 'checkout'] UNION ALL
+  SELECT 3, 1, 0, ['page1'], [TIMESTAMP('2019-01-01 00:00:00')], ['home']
+)
+
+
+SELECT
+  *
+FROM `data`
