@@ -57,17 +57,18 @@ All types defined in other databases are also available in BigQuery; run the fol
 
 ```sql
 WITH `data` AS (
-  SELECT 'string' AS STRING,
-  (SELECT 1) AS INT64,
-  (SELECT 1.25) AS FLOAT64,
-  (SELECT 99999999999999999999999999999.999999999) AS NUMERIC,
-  (SELECT FALSE AND TRUE) AS BOOLEAN,
-  (SELECT b'0x00') AS BYTES,
-  (SELECT DATE('2019-01-01')) AS DATE,
-  (SELECT DATETIME('2019-01-01')) AS DATETIME,
-  (SELECT '23:59:59') AS TIME,
-  (SELECT TIMESTAMP('2019-01-01 00:00:00')) AS TIMESTAMP,
-  (SELECT ST_GEOGPOINT(40.3, 30.5)) AS GEOPOINT
+  SELECT 
+    'string' AS STRING,
+    1 AS INT64,
+    1.25 AS FLOAT64,
+    99999999999999999999999999999.999999999 AS NUMERIC,
+    FALSE AND TRUE AS BOOLEAN,
+    b'0x00' AS BYTES,
+    DATE('2019-01-01') AS DATE,
+    DATETIME('2019-01-01') AS DATETIME,
+    '23:59:59' AS TIME,
+    TIMESTAMP('2019-01-01 00:00:00') AS TIMESTAMP,
+    ST_GEOGPOINT(40.3, 30.5) AS GEOPOINT
 )
 
 
@@ -113,7 +114,7 @@ For doing so, we need to work with data that can repeate itself in just one colu
 
 ## Arrays
 
-That's where Arrays and Structs comes into play. [Arrays](https://cloud.google.com/bigquery/docs/reference/standard-sql/arrays) basically let us repeate a given field; here's one way of building it in BigQuery:
+That's where Arrays and Structs comes into play. [Arrays](https://cloud.google.com/bigquery/docs/reference/standard-sql/arrays) basically let us repeate a given field while refering to the exact same row; here's one way of building it in BigQuery:
 
 ```sql
 WITH `data` AS (
@@ -169,18 +170,22 @@ Or in JSON format:
 ]
 ```
 
-Notice the very cool consequence of that: we no longer have repetitions happening. In just one row, BigQuery already has access to all data it can get about each user.
+Notice the very cool property of that: in just one row we already write all information there's to each user; no longer do we need to repeate all columns data for each row to express all different pages customers visited. Field "pages" can repeate itself so we can insert all values we want there and still have all that associated to the respective user in the row.
 
-For those who know about [norm forms](https://en.wikipedia.org/wiki/Database_normalization) applied to databases, BigQuery goes to the complete opposite direction: the more denormalized, the better! Reason being that costs are not as bad as processing resources; if in just one read it already has access to everything it needs and doesn't have to work as much in the shuffling phase then end result is processed much faster.
+For those who know about [norm forms](https://en.wikipedia.org/wiki/Database_normalization) applied to databases, BigQuery goes to the opposite direction: the more denormalized, the better! Reason being that costs are not as bad as processing resources; if in just reading a single row it already has access to everything it needs the shuffle phase becomes much more efficient which speeds up the processing requirements considerably.
+
+Instead of running joins operations with huge amounts of data we write everything required on each row and save the database the trouble of having to shuffle around up to teras of petabytes of data. 
+
+To start getting some acquaintance with this concept, let's exercise a bit.
 
 ### Task 1
 
-Let's practice a bit with a very simple exercise: for our previous data of customers in a website, add a new column called `time` specyfing the timestamp of when it ocurred (choose your own values, make sure to use timestamp) and another called `page_type` (can be either "home", "catalog" or "checkout").
+For our previous data of customers in a website, add a new column called `time` specyfing the timestamp of when it ocurred (choose your own values, make sure to use timestamps) and another called `page_type` (can be either "home", "catalog" or "checkout").
 
 Write your own query below:
 
 ```sql
-#YOUR QUERY HERE
+# YOUR QUERY HERE
 ```
 
 A possible result:
@@ -192,6 +197,14 @@ Before moving on, sometimes you'll want to let BigQuery know explicitly what is 
 ```sql
 SELECT
   ARRAY<STRING> ['string1', 'string2']
+```
+
+### Task 2
+
+Let's work with this concept now; use your previous query this time making explict the types used on each array.
+
+```sql
+# YOUR QUERY HERE
 ```
 
 ## Structs
