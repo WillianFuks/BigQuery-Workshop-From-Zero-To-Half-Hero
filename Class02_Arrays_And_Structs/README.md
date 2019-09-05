@@ -1,6 +1,14 @@
 # Arrays And Structs
 
-## Introduction
+This tutorial covers the following:
+
+1. [Introduction](#1-introduction)
+2. [Arrays](#2-arrays)
+    1. [Task1](#21-task1)
+    2. [Task2](#22-task2)
+3. [Structs](#3-structs)
+
+## 1. Introduction
 
 As we've seen in Class 01, one of the biggest powers of BigQuery comes from operating nested data directly; the better we use this paradigm the less operations will be performed in the shuffle phase making BigQuery more effective, cheaper and faster.
 
@@ -112,7 +120,7 @@ One approach to handle that in BigQuery is to denormalize data that as much as p
 
 For doing so, we need to work with data that can repeate itself in just one column; arrays for the rescue!
 
-## Arrays
+## 2. Arrays
 
 That's where Arrays and Structs comes into play. [Arrays](https://cloud.google.com/bigquery/docs/reference/standard-sql/arrays) basically let us repeate a given field while refering to the exact same row; here's one way of building it in BigQuery:
 
@@ -178,7 +186,7 @@ Instead of running joins operations with huge amounts of data we write everythin
 
 To start getting some acquaintance with this concept, let's exercise a bit.
 
-### Task 1
+### 2.1 Task1
 
 For our previous data of customers in a website:
   - add a new column called `time` specyfing the timestamp of when it ocurred (choose your own values, make sure to use timestamps)
@@ -201,7 +209,7 @@ SELECT
   ARRAY<STRING> ['string1', 'string2']
 ```
 
-### Task 2
+### 2.2 Task2
 
 Let's work with this concept now; use your query from the previous task this time making explicit the types used on each defined array.
 
@@ -209,7 +217,7 @@ Let's work with this concept now; use your query from the previous task this tim
 # YOUR QUERY HERE
 ```
 
-## Structs
+## 3. Structs
 
 Besides arrays, we also have the type [Struct](https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#struct-type).
 
