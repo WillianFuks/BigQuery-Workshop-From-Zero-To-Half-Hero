@@ -6,6 +6,8 @@ This tutorial covers the following:
 2. [Arrays](#2-arrays)
     1. [Task1](#21-task1)
     2. [Task2](#22-task2)
+    3. [Offset](#23-offset)
+    4. [Task3](#24-task3)
 3. [Structs](#3-structs)
 
 ## 1. Introduction
@@ -184,7 +186,7 @@ For those who know about [norm forms](https://en.wikipedia.org/wiki/Database_nor
 
 Instead of running joins operations with huge amounts of data we write everything required on each row and save the database the trouble of having to shuffle around up to teras of petabytes of data. 
 
-To start getting some acquaintance with this concept, let's exercise a bit.
+To start getting some acquaintance with this concept, let's exercise a bit. For the next exercises, we recommend you to create files in the [answers](./answers) folder with the name of the task (notice we already have some files there but they are encrypted ;)!)
 
 ### 2.1 Task1
 
@@ -216,6 +218,85 @@ Let's work with this concept now; use your query from the previous task this tim
 ```sql
 # YOUR QUERY HERE
 ```
+
+This all sounds cool and stuff. But then you are probably wondering: "ok, and how do we select values from inside an array?!".
+
+Well, that also requires new techniques; there are a few methods we can use here, each is more appropriate according to what you are trying to do.
+
+### 2.3 Offset
+
+First approach we'll see is the [OFFSET](https://cloud.google.com/bigquery/docs/reference/standard-sql/array_functions#offset_and_ordinal): this function basically let's you choose from a index based value from an array.
+
+Let's use our previous query as an example:
+
+```sql
+WITH `data` AS (
+  SELECT 1 AS user_id, 3 AS total_pageviews, 0 AS total_clicks, ['page1', 'page2', 'page3'] AS pages UNION ALL
+  SELECT 2, 5, 1, ['page1', 'page2', 'page3', 'page4', 'page5'] UNION ALL
+  SELECT 3, 1, 0, ['page1']
+)
+
+
+SELECT
+  user_id,
+  pages[OFFSET(0)] AS page_0
+FROM `data`
+```
+
+Which results:
+
+<table pan-table="" class="p6n-bq-results-table-pb p6n-table" role="grid" jslog="47391;track:generic_click"> <thead pan-sort-agent="sortCtrl"> <tr><!----> <th>Row</th> <!----><th ng-repeat="header in ctrl.schema.fields track by (ctrl.tableId + $index)"> user_id </th><!----><th ng-repeat="header in ctrl.schema.fields track by (ctrl.tableId + $index)"> page_0 </th><!----> <th class="p6n-bq-empty-last-column"></th> </tr> </thead> <tbody> <!----><tr pan-table-row="" ng-repeat="row in ctrl.rows | panSortBy:(sortCtrl&amp;&amp;sortCtrl.getActiveKey()):&quot;normal&quot;:sortCache:paginateCtrl  track by (ctrl.tableId + ':' + row.rowTrackBy + ':row' + $index)" class="p6n-bq-last-row-of-record" ng-bind-html="row.htmlRow" ng-init="$last &amp;&amp; panTableCtrl.onRowRepeatEnd()" pan-table-row-after-repeat="row"><td class="p6n-bq-row-number">1</td><td class="p6n-bq-number-cell"><div>1</div></td><td><div>page1</div></td><td class="p6n-bq-empty-last-column"></td></tr><!----><tr pan-table-row="" ng-repeat="row in ctrl.rows | panSortBy:(sortCtrl&amp;&amp;sortCtrl.getActiveKey()):&quot;normal&quot;:sortCache:paginateCtrl  track by (ctrl.tableId + ':' + row.rowTrackBy + ':row' + $index)" class="p6n-bq-last-row-of-record" ng-bind-html="row.htmlRow" ng-init="$last &amp;&amp; panTableCtrl.onRowRepeatEnd()" pan-table-row-after-repeat="row"><td class="p6n-bq-row-number">2</td><td class="p6n-bq-number-cell"><div>2</div></td><td><div>page1</div></td><td class="p6n-bq-empty-last-column"></td></tr><!----><tr pan-table-row="" ng-repeat="row in ctrl.rows | panSortBy:(sortCtrl&amp;&amp;sortCtrl.getActiveKey()):&quot;normal&quot;:sortCache:paginateCtrl  track by (ctrl.tableId + ':' + row.rowTrackBy + ':row' + $index)" class="p6n-bq-last-row-of-record" ng-bind-html="row.htmlRow" ng-init="$last &amp;&amp; panTableCtrl.onRowRepeatEnd()" pan-table-row-after-repeat="row"><td class="p6n-bq-row-number">3</td><td class="p6n-bq-number-cell"><div>3</div></td><td><div>page1</div></td><td class="p6n-bq-empty-last-column"></td></tr><!----> </tbody> </table>
+
+We effectively only retrieve the very first value on each array.
+
+This approach can be all you need in your data processing task but it's not the only way to access values. Imagine for instance if you wanted to select all values inside the array containing pages that customers browsed related to product descriptions; `OFFSET` technique will no longer work now.
+
+We solve this with different approaches as we'll see soon.
+
+But, before moving on, let's do another task. This time, it's required from you to retrieve all second values from the page arrays with one caveat: there are users with empty arrays:
+
+```sql
+WITH `data` AS (
+  SELECT 1 AS user_id, 3 AS total_pageviews, 0 AS total_clicks, ['page1', 'page2', 'page3'] AS pages UNION ALL
+  SELECT 2, 5, 1, ['page1', 'page2', 'page3', 'page4', 'page5'] UNION ALL
+  SELECT 3, 1, 0, ['page1'] UNION ALL
+  SELECT 4, 0, 0, []
+)
+
+
+SELECT
+  user_id,
+  pages[OFFSET(1)] AS page_1
+FROM `data`
+```
+
+If you use plain simple `OFFSET` you'll observe this error message:
+
+    Array index 1 is out of bounds (overflow)
+
+So we have another challenge for you: run the previous query retrieving second values of each array avoiding the error exception.
+
+To do so, you'll have to research and read BigQuery's own [documentation](https://cloud.google.com/bigquery/docs/reference/standard-sql/query-syntax). The purpose of this task is to start preparing you for what it's like to work with BigQuery: you'll advance by reading through the documentation (and we should keep as a note that the official docs are an increadible source of information, it's highly recommended to read it through for topics you find interesting) and other sources such as [Stackoverflow](https://stackoverflow.com/questions/tagged/google-bigquery) where Google have its own engineers of best quality helping the community on their issues. Therefore, get ready for task 3 ;)
+
+### 2.4 Task3
+
+Same as before but this time retrieve arrays on index 1 (second value).
+
+```sql
+WITH `data` AS (
+  SELECT 1 AS user_id, 3 AS total_pageviews, 0 AS total_clicks, ['page1', 'page2', 'page3'] AS pages UNION ALL
+  SELECT 2, 5, 1, ['page1', 'page2', 'page3', 'page4', 'page5'] UNION ALL
+  SELECT 3, 1, 0, ['page1'] UNION ALL
+  SELECT 4, 0, 0, []
+)
+
+
+# YOUR QUERY HERE
+```
+
+Expected result:
+
+<table pan-table="" class="p6n-bq-results-table-pb p6n-table" role="grid" jslog="47391;track:generic_click"> <thead pan-sort-agent="sortCtrl"> <tr><!----> <th>Row</th> <!----><th ng-repeat="header in ctrl.schema.fields track by (ctrl.tableId + $index)"> user_id </th><!----><th ng-repeat="header in ctrl.schema.fields track by (ctrl.tableId + $index)"> page_1 </th><!----> <th class="p6n-bq-empty-last-column"></th> </tr> </thead> <tbody> <!----><tr pan-table-row="" ng-repeat="row in ctrl.rows | panSortBy:(sortCtrl&amp;&amp;sortCtrl.getActiveKey()):&quot;normal&quot;:sortCache:paginateCtrl  track by (ctrl.tableId + ':' + row.rowTrackBy + ':row' + $index)" class="p6n-bq-last-row-of-record" ng-bind-html="row.htmlRow" ng-init="$last &amp;&amp; panTableCtrl.onRowRepeatEnd()" pan-table-row-after-repeat="row"><td class="p6n-bq-row-number">1</td><td class="p6n-bq-number-cell"><div>1</div></td><td><div>page2</div></td><td class="p6n-bq-empty-last-column"></td></tr><!----><tr pan-table-row="" ng-repeat="row in ctrl.rows | panSortBy:(sortCtrl&amp;&amp;sortCtrl.getActiveKey()):&quot;normal&quot;:sortCache:paginateCtrl  track by (ctrl.tableId + ':' + row.rowTrackBy + ':row' + $index)" class="p6n-bq-last-row-of-record" ng-bind-html="row.htmlRow" ng-init="$last &amp;&amp; panTableCtrl.onRowRepeatEnd()" pan-table-row-after-repeat="row"><td class="p6n-bq-row-number">2</td><td class="p6n-bq-number-cell"><div>2</div></td><td><div>page2</div></td><td class="p6n-bq-empty-last-column"></td></tr><!----><tr pan-table-row="" ng-repeat="row in ctrl.rows | panSortBy:(sortCtrl&amp;&amp;sortCtrl.getActiveKey()):&quot;normal&quot;:sortCache:paginateCtrl  track by (ctrl.tableId + ':' + row.rowTrackBy + ':row' + $index)" class="p6n-bq-last-row-of-record" ng-bind-html="row.htmlRow" ng-init="$last &amp;&amp; panTableCtrl.onRowRepeatEnd()" pan-table-row-after-repeat="row"><td class="p6n-bq-row-number">3</td><td class="p6n-bq-number-cell"><div>3</div></td><td><div class="p6n-bq-null-cell">null</div></td><td class="p6n-bq-empty-last-column"></td></tr><!----><tr pan-table-row="" ng-repeat="row in ctrl.rows | panSortBy:(sortCtrl&amp;&amp;sortCtrl.getActiveKey()):&quot;normal&quot;:sortCache:paginateCtrl  track by (ctrl.tableId + ':' + row.rowTrackBy + ':row' + $index)" class="p6n-bq-last-row-of-record" ng-bind-html="row.htmlRow" ng-init="$last &amp;&amp; panTableCtrl.onRowRepeatEnd()" pan-table-row-after-repeat="row"><td class="p6n-bq-row-number">4</td><td class="p6n-bq-number-cell"><div>4</div></td><td><div class="p6n-bq-null-cell">null</div></td><td class="p6n-bq-empty-last-column"></td></tr><!----> </tbody> </table>
 
 ## 3. Structs
 
