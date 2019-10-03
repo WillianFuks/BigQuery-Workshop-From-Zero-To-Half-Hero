@@ -4,7 +4,7 @@ Welcome to this BigQuery quick and dirty somewhat Workshop!
 
 This is intended to be a quick and simple tutorial about BigQuery; won't make you a hero but will get you somewhat half there. We hope.
 
-To begin with, please refer to [Class00](./Class00_Setup/README.md) where we discuss basic setting up. After that, [Class01](./Class01_Arrays_And_Structs/README.md) will give you a very brief introduction about BigQuery and finally we jump into action by learning and testing concepts about the database.
+To begin with, please refer to [Class00](./Class00_Setup/README.md) where we discuss basic setting up. After that, [Class01](./Class_01_Introduction/README.md) will give you a very brief introduction about BigQuery and, finally, [Class02](./Class02_Arrays_And_Structs/README.md) will start exploring the concepts along with examples and exercises.
 
 ## DISCLAIMER
 
