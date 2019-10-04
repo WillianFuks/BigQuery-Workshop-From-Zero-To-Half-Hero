@@ -406,9 +406,25 @@ There's one catch here though: so far we worked retrieving just one value from t
 Run the following query to see what happens:
 
 ```sql
+WITH `data` AS (
+  SELECT 1 AS user_id, 3 AS total_pageviews, 0 AS total_clicks, ['page1', 'page2', 'page3'] AS pages UNION ALL
+  SELECT 2, 5, 1, ['page1', 'page2', 'page3', 'page4', 'page5'] UNION ALL
+  SELECT 3, 1, 0, ['page1'] UNION ALL
+  SELECT 4, 0, 0, []
+)
 
+
+SELECT
+  user_id,
+  (SELECT page FROM UNNEST(pages) AS page WHERE page != 'page2') AS page
+FROM `data`
 ```
 
+You'll get this error:
+
+<p align="center">
+  <img src="./images/scalar_subquery_error.png">
+</p>
 
 
 ## 3. Structs
