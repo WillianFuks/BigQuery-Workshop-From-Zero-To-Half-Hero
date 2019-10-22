@@ -5,7 +5,9 @@ First two examples are based on the official BigQuery [Cookbook](https://support
 - [Products purchased by customers who purchased Product A](#products-purchased-by-customers-who-purchased-product-a)
 - [Average Number of Hits Before Purchase](#average-number-of-hits-before-purchase)
 - [Cosine Similarity Between Products](#cosine-similarity-between-products)
-
+- [Conversion Path](#conversion-path)
+- [Price Performance Variation ](#price-performance-variation)
+- [Querying From Multiple Datasets](#querying-from-multiple-datasets)
 
 ### Products purchased by customers who purchased Product A
 
@@ -252,5 +254,243 @@ Also, we used `WITH` clauses to help in reading the query, only remember that re
 
 ### Search Performance
 
-This example is based on Dafiti's Google Analytics data. When customers run a search, an event is sent to GA; the challenge then is to find search performance in terms of sales and products interactions.
+Let's find the performance of a search engine working for a given ecommerce with the following rules:
+  - When customers make a search, an event is registered. For a given catalog page, the only evidence of that being search related is through the URL that should contain the string `q=text search`
+  - After a search, customer can browse any other page, not related to a search result. 
+  - More than one search can be performed, sales for each has to be distributed accordingly.
+  - For each search term, we want to find its total ocurrencies, clicks on products from the catalog, how many bounces we had (clients that leave the page right after seeing the search result) and revenue.
 
+We've simulated `data` on this one. Here's a possible solution:
+
+```sql
+CREATE TEMP FUNCTION removeAccents(text STRING) RETURNS STRING AS ((
+  SELECT REGEXP_REPLACE(NORMALIZE(text, NFD), r'\pM', '')
+));
+
+CREATE TEMP FUNCTION slugify(phrase STRING) RETURNS STRING AS ((
+  SELECT REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(removeAccents(LOWER(phrase)), r'\s+', '-'), r'&', '-e-'), r'[^\w-]+', ''), r'--+', '-'), r'^-+', ''), r'-+$', '')
+));
+
+# Extracts revenue from list of products purchased from the search page
+CREATE TEMP FUNCTION processSearchRevenue(skus_clicked ARRAY<STRING>, purchased_skus ARRAY<STRUCT<sku STRING, revenue FLOAT64> >) RETURNS FLOAT64 AS ((
+  SELECT SUM(revenue) FROM UNNEST(purchased_skus) WHERE EXISTS(SELECT 1 FROM UNNEST(skus_clicked) sku_clicked WHERE sku_clicked = sku)
+));
+
+# Compares the search term to the string in the page URL; returns True if there's a match
+CREATE TEMP FUNCTION isSearchPage(search_term STRING, page_url STRING) RETURNS BOOL AS ((
+  SELECT LOGICAL_AND(STRPOS(page_url, x) > 0 OR STRPOS(LOWER(page_url), removeAccents(LOWER(x))) > 0) FROM UNNEST(SPLIT(search_term, ' ')) x
+));
+
+
+WITH `data` AS(
+  SELECT "1" AS fullvisitorid, 1 AS visitid,  "20171220" AS date, STRUCT<totalTransactionRevenue FLOAT64>  (100000000.0) AS totals, ARRAY<STRUCT<hitNumber INT64, page STRUCT<pagePath STRING>, ecommerceAction STRUCT<action_type STRING>, eventInfo STRUCT<eventCategory STRING, eventLabel STRING>, product ARRAY<STRUCT<productSku STRING, isClick BOOL, productQuantity INT64, productPrice FLOAT64> >>> 
+    [STRUCT(1 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(2 AS hitNumber, STRUCT("/?q=fake+search" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice), STRUCT("sku1" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(3 AS hitNumber, STRUCT("/?q=fake+search" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(4 AS hitNumber, STRUCT("/checkout" AS pagePath) AS page, STRUCT("6" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0-000" AS productSku, False AS isClick, 1 AS productQuantity, 100000000.0 AS productPrice)] AS product)] hits
+
+  UNION ALL
+  
+  SELECT "2" AS fullvisitorid, 1 as visitid, "20171220" AS date, STRUCT<totalTransactionRevenue FLOAT64>  (NULL) AS totals, ARRAY<STRUCT<hitNumber INT64, page STRUCT<pagePath STRING>, ecommerceAction STRUCT<action_type STRING>, eventInfo STRUCT<eventCategory STRING, eventLabel STRING>, product ARRAY<STRUCT<productSku STRING, isClick BOOL, productQuantity INT64, productPrice FLOAT64> >>> 
+    [STRUCT(1 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(2 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT("search" AS eventCategory, "search string" AS eventLabel) AS eventInfo, NULL AS product), STRUCT(3 AS hitNumber, STRUCT("/?q=search+string" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product)] hits
+
+  UNION ALL     
+     
+  SELECT "2" AS fullvisitorid, 2 as visitid, "20171220" AS date, STRUCT<totalTransactionRevenue FLOAT64>  (NULL) AS totals, ARRAY<STRUCT<hitNumber INT64, page STRUCT<pagePath STRING>, ecommerceAction STRUCT<action_type STRING>, eventInfo STRUCT<eventCategory STRING, eventLabel STRING>, product ARRAY<STRUCT<productSku STRING, isClick BOOL, productQuantity INT64, productPrice FLOAT64> >>> 
+    [STRUCT(1 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(2 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT("search" AS eventCategory, "search string" AS eventLabel) AS eventInfo, NULL AS product),
+     STRUCT(3 AS hitNumber, STRUCT("/?q=search+string" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),     
+     STRUCT(4 AS hitNumber, STRUCT("/?q=search+string" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(5 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT("search" AS eventCategory, "search another string" AS eventLabel) AS eventInfo, NULL AS product),
+     STRUCT(6 AS hitNumber, STRUCT("/?q=search+another+string" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product)] hits
+     
+  UNION ALL
+ 
+  SELECT "3" AS fullvisitorid, 1 as visitid, "20171220" AS date, STRUCT<totalTransactionRevenue FLOAT64>  (200000000.0) AS totals, ARRAY<STRUCT<hitNumber INT64, page STRUCT<pagePath STRING>, ecommerceAction STRUCT<action_type STRING>, eventInfo STRUCT<eventCategory STRING, eventLabel STRING>, product ARRAY<STRUCT<productSku STRING, isClick BOOL, productQuantity INT64, productPrice FLOAT64> >>> 
+    [STRUCT(1 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product), 
+     STRUCT(2 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT("search" AS eventCategory, "search string" AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(3 AS hitNumber, STRUCT("/?q=search+string" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(4 AS hitNumber, STRUCT("/checkout" AS pagePath) AS page, STRUCT("6" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, False AS isClick, 2 AS productQuantity, 100000000.0 AS productPrice)] AS product)] hits
+     
+  UNION ALL
+ 
+  SELECT "4" AS fullvisitorid, 1 as visitid, "20171220" AS date, STRUCT<totalTransactionRevenue FLOAT64>  (100000000.0) AS totals, ARRAY<STRUCT<hitNumber INT64, page STRUCT<pagePath STRING>, ecommerceAction STRUCT<action_type STRING>, eventInfo STRUCT<eventCategory STRING, eventLabel STRING>, product ARRAY<STRUCT<productSku STRING, isClick BOOL, productQuantity INT64, productPrice FLOAT64> >>> 
+    [STRUCT(1 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(2 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT("search" AS eventCategory, "Sêãrchí CrÃzĩ Éstrìng" AS eventLabel) AS eventInfo, NULL AS product),
+     STRUCT(3 AS hitNumber, STRUCT("/?q=Sêãrchí CrÃzĩ Éstrìng" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(4 AS hitNumber, STRUCT("/?q=Searchi%20Crazi%20Estring&sort=discount" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo,
+     [STRUCT("sku0" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(5 AS hitNumber, STRUCT("/?q=Searchi%20Crazi%20Estring&sort=discount" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT("search" AS eventCategory, "Searchi crÃzĩ Éstrìng" AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(6 AS hitNumber, STRUCT("/?q=Searchi%20crazi%20Estring&sort=discount" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),    
+     STRUCT(7 AS hitNumber, STRUCT("/checkout" AS pagePath) AS page, STRUCT("6" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, False AS isClick, 1 AS productQuantity, 100000000.0 AS productPrice)] AS product)] hits
+     
+  UNION ALL
+ 
+  SELECT "4" AS fullvisitorid, 2 as visitid, "20171220" AS date, STRUCT<totalTransactionRevenue FLOAT64>  (100000000.0) AS totals, ARRAY<STRUCT<hitNumber INT64, page STRUCT<pagePath STRING>, ecommerceAction STRUCT<action_type STRING>, eventInfo STRUCT<eventCategory STRING, eventLabel STRING>, product ARRAY<STRUCT<productSku STRING, isClick BOOL, productQuantity INT64, productPrice FLOAT64> >>> 
+    [STRUCT(1 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(2 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT("search" AS eventCategory, "Seãrchí Crazĩ estrìng" AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(3 AS hitNumber, STRUCT("/?q=Seãrchí Crazĩ estrìng" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, NULL AS product),
+     STRUCT(4 AS hitNumber, STRUCT("/?q=Searchi%20Crazi%20estring&sort=discount" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku1" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(5 AS hitNumber, STRUCT("/?q=Searchi%20Crazi%20estring&sort=discount" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT("search" AS eventCategory, "search other string" AS eventLabel) AS eventInfo,
+     NULL AS product),
+     STRUCT(6 AS hitNumber, STRUCT("/?q=search%20other%20string&sort=discount" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(7 AS hitNumber, STRUCT("/checkout" AS pagePath) AS page, STRUCT("6" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, False AS isClick, 1 AS productQuantity, 100000000.0 AS productPrice), STRUCT("sku1" AS productSku, False AS isClick, 1 AS productQuantity, 150000000.0 AS productPrice)] AS product)] hits
+     
+  UNION ALL
+ 
+  SELECT "4" AS fullvisitorid, 1 as visitid, "20171221" AS date, STRUCT<totalTransactionRevenue FLOAT64>  (100000000.0) AS totals, ARRAY<STRUCT<hitNumber INT64, page STRUCT<pagePath STRING>, ecommerceAction STRUCT<action_type STRING>, eventInfo STRUCT<eventCategory STRING, eventLabel STRING>, product ARRAY<STRUCT<productSku STRING, isClick BOOL, productQuantity INT64, productPrice FLOAT64> >>> 
+    [STRUCT(1 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("" AS productSku, False AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product),
+     STRUCT(2 AS hitNumber, STRUCT("/" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT("search" AS eventCategory, "Seãrchí Crazĩ estrìng" AS eventLabel) AS eventInfo, NULL AS product),
+     STRUCT(3 AS hitNumber, STRUCT("/?q=Seãrchí Crazĩ estrìng" AS pagePath) AS page, STRUCT("0" AS action_type) AS ecommerceAction, STRUCT(NULL AS eventCategory, NULL AS eventLabel) AS eventInfo, [STRUCT("sku0" AS productSku, True AS isClick, 0 AS productQuantity, 0.0 AS productPrice)] AS product)] hits
+)
+
+SELECT
+  date,
+  search_term,
+  COUNT(search_term) AS ocurrencies,
+  SUM(search_click) AS clicks,
+  SUM(search_revenue) AS revenue,
+  SUM(search_page_bounce) AS search_page_bounces
+FROM(
+  SELECT
+    date,
+    ARRAY(SELECT AS STRUCT
+      search_term,
+      MAX(IF(sku_clicked IS NOT NULL, 1, 0)) AS search_click,
+      processSearchRevenue(ARRAY_AGG(DISTINCT sku_clicked IGNORE NULLS), products_purchased) AS search_revenue,
+      MAX(bounce) AS search_page_bounce
+    FROM UNNEST(hits) WHERE search_term IS NOT NULL GROUP BY search_term) AS hits
+  FROM(
+    SELECT
+       date,
+       ARRAY(SELECT AS STRUCT
+         slugify(FIRST_VALUE(search_term) OVER (PARTITION BY search_flag ORDER BY hit_number)) AS search_term,
+         IF(isSearchPage(FIRST_VALUE(search_term) OVER (PARTITION BY search_flag ORDER BY hit_number), page_url) AND EXISTS(SELECT 1 FROM UNNEST(products) WHERE isClick), ARRAY(SELECT productSku FROM UNNEST(products))[SAFE_OFFSET(0)], NULL) AS sku_clicked,
+         IF(isSearchPage(FIRST_VALUE(search_term) OVER (PARTITION BY search_flag ORDER BY hit_number), page_url) AND hit_number = MAX(hit_number) OVER(), 1, NULL) AS bounce
+       FROM UNNEST(hits)) hits,
+       ARRAY(SELECT AS STRUCT productSku AS sku, SUM(revenue) AS revenue FROM UNNEST(hits), UNNEST(products) WHERE action_type = '6' GROUP BY 1) AS products_purchased
+    FROM(
+      SELECT
+        date,
+        ARRAY_CONCAT_AGG(ARRAY(SELECT AS STRUCT
+          hitNumber AS hit_number,
+          page.pagePath AS page_url,
+          IF(eventInfo.eventCategory = 'search', eventInfo.eventLabel, NULL) AS search_term,
+          SUM(IF(eventInfo.eventCategory = 'search', 1, 0)) OVER(ORDER BY hitNumber) AS search_flag,
+          ecommerceAction.action_type AS action_type,
+          ARRAY(SELECT AS STRUCT productSku, isClick, (productQuantity * productPrice / 1e6) AS revenue FROM UNNEST(product)) AS products
+        FROM UNNEST(hits))) AS hits
+      FROM `data`
+      GROUP BY date, fullvisitorid
+    )
+  )
+), UNNEST(hits)
+GROUP BY date, search_term
+```
+
+The query is a bit complex. Let's understand its constituent parts, first we have:
+
+```sql
+SELECT
+  date,
+  ARRAY_CONCAT_AGG(ARRAY(SELECT AS STRUCT
+    hitNumber AS hit_number,
+    page.pagePath AS page_url,
+    IF(eventInfo.eventCategory = 'search', eventInfo.eventLabel, NULL) AS search_term,
+    SUM(IF(eventInfo.eventCategory = 'search', 1, 0)) OVER(ORDER BY hitNumber) AS search_flag,
+    ecommerceAction.action_type AS action_type,
+    ARRAY(SELECT AS STRUCT productSku, isClick, (productQuantity * productPrice / 1e6) AS revenue FROM UNNEST(product)) AS products
+  FROM UNNEST(hits))) AS hits
+FROM `data`
+GROUP BY date, fullvisitorid
+```
+
+First we take each `hits` array from customer and aggregate it (`ARRAY_CONCAT_AGG`).
+
+For each `hit`, we extract the search term and prepare sales from products.
+
+Then we have upper the query:
+
+```sql
+    SELECT
+       date,
+       ARRAY(SELECT AS STRUCT
+         slugify(FIRST_VALUE(search_term) OVER (PARTITION BY search_flag ORDER BY hit_number)) AS search_term,
+         IF(isSearchPage(FIRST_VALUE(search_term) OVER (PARTITION BY search_flag ORDER BY hit_number), page_url) AND EXISTS(SELECT 1 FROM UNNEST(products) WHERE isClick), ARRAY(SELECT productSku FROM UNNEST(products))[SAFE_OFFSET(0)], NULL) AS sku_clicked,
+         IF(isSearchPage(FIRST_VALUE(search_term) OVER (PARTITION BY search_flag ORDER BY hit_number), page_url) AND hit_number = MAX(hit_number) OVER(), 1, NULL) AS bounce
+       FROM UNNEST(hits)) hits,
+       ARRAY(SELECT AS STRUCT productSku AS sku, SUM(revenue) AS revenue FROM UNNEST(hits), UNNEST(products) WHERE action_type = '6' GROUP BY 1) AS products_purchased
+    FROM (...)
+```
+
+Here we repeate the value of the search term using as partition the search flags.
+
+What happens next is straightfoward: for each search term we track clicks, bounces, sales and general performances.
+
+Finally last query is just a consolidation of everything that happened for each date and search term.
+
+### Price Performance Variation 
+
+For each sku, we'll find how many impressions and product views it had for each selling price. A view is considered to be valid if and only if it happens after a catalog impression event has been observed.
+
+One possible solution would be:
+
+```sql
+SELECT
+  date,
+  sku,
+  ARRAY_AGG(STRUCT(price, impressions, views)) AS performance
+FROM(
+  SELECT
+    date,
+    sku,
+    price,
+    SUM(impression) AS impressions,
+    SUM(view) AS views
+  FROM(
+    SELECT
+     date,
+     ARRAY(SELECT AS STRUCT
+       productSKU AS sku,
+       productPrice / 1e6 AS price,
+       MAX(CAST(isImpression AS INT64)) AS impression,
+       IF(MIN(IF(ecommerceAction.action_type = '2', time, NULL)) > MIN(IF(isImpression, time, NULL)), 1, NULL) AS view
+     FROM UNNEST(hits) LEFT JOIN UNNEST(product) WHERE (productSKU != '(not set)' AND productSKU IS NOT NULL)  GROUP BY productSKU, price HAVING impression IS NOT NULL) AS products
+      FROM `bigquery-public-data.google_analytics_sample.ga_sessions_20170801`
+    WHERE EXISTS(SELECT 1 FROM UNNEST(hits), UNNEST(product) WHERE isImpression)
+  ), UNNEST(products)
+  GROUP BY date, sku, price
+)
+GROUP BY date, sku
+```
+
+### Querying From Multiple Datasets
+
+Sometimes your data might come from distinct datasets with same schema. Here's one example for handling that:
+
+```sql
+SELECT
+  date,
+  device_ AS device_category,
+FROM(
+  SELECT 
+    *
+  FROM (
+    SELECT
+      *,
+      device.deviceCategory AS device_
+    FROM `{projectId}{datasetId}{first_table}`
+    WHERE _TABLE_SUFFIX  BETWEEN FORMAT_DATE("%Y%m%d", DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)) AND FORMAT_DATE("%Y%m%d", DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY))
+  ) UNION ALL (
+  SELECT
+    *,
+    'app' AS device_
+  FROM `{projectId}{datasetId}{second_table}`
+  WHERE _TABLE_SUFFIX  BETWEEN FORMAT_DATE("%Y%m%d", DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)) AND FORMAT_DATE("%Y%m%d", DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY))
+  )
+)
+GROUP BY date, device_
+```
+
+We simply encapsulate everything in a `SELECT * FROM (...)` followed by a `UNION ALL`.
