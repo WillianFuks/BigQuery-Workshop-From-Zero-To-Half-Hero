@@ -16,6 +16,8 @@ This tutorial covers the following:
 3. [Structs](#3-structs)
     1. [Task 6](#3.1-task-6)
     2. [Task 7](#3.2-task-7)
+4. [Cookbook](cookbook.md)
+5. [Exercises](exercises.md)
 
 ## 1. Introduction
 
