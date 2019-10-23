@@ -24,19 +24,19 @@ To begin with, BigQuery is the integration of the following tools working togeth
   <img src="./images/bq_architecture.png">
 </p>
 
-Ok, that's lots of tools and each carries a whole universe of knowledge and concepts within themselves; while we won't cover the details, let's see briefly their purpose.
+Ok, that's lots of tools and each carries a whole universe of knowledge and concepts; while we won't cover the details, let's see briefly some details on these tools.
 
 ### Colossus
 
-This is the fault-tolerant world-wide distributed storage system where our data is stored. If you look closely, you'll notice that it is separated from other componentes through the *Jupiter* network.
+This is the fault-tolerant world-wide distributed storage system. If you look closely, you'll notice that it is separated from other componentes by the *Jupiter* network.
 
-Yeap, that's right. At first this seems crazy, then you realize it's actually brilliant. When we send our data to BigQuery, the information is sent to Colossus which first applies different transformations on it (encoding and compressing to Capacitor format files) then finally replicates the data through different datacenters to ensure fault-tolerance.
+Yeap, that's right. At first this seems crazy, then you realize it's actually brilliant. When we send our data to BigQuery, the information is sent to Colossus which first applies different transformations on it (encoding and compressing to Capacitor format) then finally replicates the data through different datacenters to ensure fault-tolerance property.
 
 Well, so you are probably asking yourself: "Ok but what if we query dozens of terabytes of data?! It'd be necessary to transfer teras through the network!!!".
 
-Yeap again, that's right. But as it turns out, Jupiter is capable of processing up to *Petabytes* of data per second. You read that right, it's petabytes per second.
+That's right. But as it turns out, Jupiter is capable of processing up to *Petabytes* of data per second; you read that right, it's petabytes per second.
 
-This is a very cool thing about the design worth keeping note of: *storage and processing are separate*. As Jupiter is insanely powerful, this enables the system to operate at much cheaper rates by using a multi-tenant architecture where you only pay for what you use. When we run queries, data is transferred to the computing servers, processed and results are returned which turns off computing costs. Effectively, you only pay for the amount of data queried over and its storage, nothing else. On top of that, the architecture ends up being quite flexible: changes made to the storage system doesn't affect processing servers or the other way around.
+This is a very cool thing about the design worth keeping note of: *storage and processing are separate*. As Jupiter is insanely fast, this enables the system to operate at much cheaper rates by using a multi-tenant architecture where you only pay for what you use. When we run queries, data is transferred to the computing servers, processed and as results are returned, processors turn off which reduces the costs. Effectively, you only pay for the amount of data queried over and data storage, nothing else. On top of that, the architecture ends up being quite flexible: changes made to the storage system doesn't affect processing servers or the other way around.
 
 Now, as just mentioned, Colossus saves data in Capacitor format which is used by Dremel; lots of strategies and concepts happens here so let's dig a bit further into these tools.
 
@@ -85,7 +85,7 @@ It could also be represented by something that resembles a json-like format (thi
 ]
 ```
 
-Not only does Dremel work with nested data but also it follows a colunar type of storage; this is expected, most databases working with massive amounts of data uses this approach due advantages such as better degrees of compression and faster processing times; each field we have in our database is saved as a capacitor file containing all data of each column independently.
+Not only does Dremel work with nested data but also it follows a colunar type of storage; this is expected, most databases working with massive amounts of data use this approach due better compression and faster processing times; each field we have in our database is saved as a capacitor file containing all data of each column independently.
 
 But, this is not a very straightforward thing to do. Keep in mind that every single record we have in our database has to be divided in its tree like structure and saved in a colunar format; bellow we see a representation of that:
 
@@ -93,13 +93,13 @@ But, this is not a very straightforward thing to do. Keep in mind that every sin
   <img src="./images/dremel_data_structure.png">
 </p>
 
-If we just save all values of a given node in a colunar format file, it won't be possible anymore to know when a given record started and when it ended or what values belong to a repeated field or not.
+If we just save all values of a given node in a colunar format file, it won't be possible anymore to know when a given record started and when it ended or what values belong to a repeated field.
 
-For fixing this, Capacitor saves for each value in our tree data two additional columns: *repetition (r)* and *definition level (d)*.
+To handle this, Capacitor saves for each value in the tree data two additional columns: *repetition \(r\)* and *definition level (d)*.
 
 "repetition" is a number that indicates which repeated field has repeated for the current value.
 
-Sounds complicated and understanding it requires reading through some examples; let's see with our previous data to understand it better. To begin with, here's a full table of Capacitor files that would be saved in Colossus for our document data:
+Sounds complicated and understanding it requires reading through some examples; let's see with our previous data; to begin with, here's a full table of Capacitor files that would be saved in Colossus for our document data:
 
 <p align="center">
   <img src="./images/dremel_r_d_example.png">
@@ -159,9 +159,9 @@ By "efficient" we mean processing the most information with the least amount of 
 
 ### Dremel
 
-Probably Dremel could be considered sort of like "the brain" of the whole thing. Colossus stores all of our data using Capacitor files; when queried over, they are brought to the processing server through the Jupyter network. Now, the one managing who process what, when and how is Dremel.
+Dremel could be considered sort of like "the brain" of the whole thing. Colossus stores all of our data using Capacitor files; when queried over, they are brought to the processing server through the Jupyter network. Now, the one managing who process what, when and how is Dremel.
 
-Funny thing is, it also works by building a tree like structure with different servers on each branch; it all starts in the root server that receives our query. 
+It also works by building a tree like structure with different servers on each branch; it all starts in the root server that receives our query. 
 
 Say, using our previous example data, that we sent a query like (not a valid query, just for learning purpose):
 
@@ -180,11 +180,19 @@ This node then divides the query into different servers known as the "Mixers" wh
   <img src="./images/leaf_nodes.png">
 </p>
 
+Joins, aggregations and analytical functions requires data [shuffling](https://cloud.google.com/blog/products/gcp/in-memory-query-execution-in-google-bigquery) operations which is basically grouping together rows from different leaf servers into the appropriate parent server; it tends to be the main bottleneck in many distributed services so it's important to know how to optimize it (this is where using nested data will give us great advantages as it helps in the shuffling phase).
+
+It's been implemented in BigQuery by making great use of the Jupiter network; Google's approach is to process the whole dataset in-memory using a flexible API defined by *consumers* and *producers* that exchanges data with remote memory servers:
+
+<p align="center">
+  <img src="./images/shuffle_bq.png">
+</p>
+
 Notice that the paradigm is to actually bring hardware to data: the more demanding the query is, the more mixers and leaf nodes are brought together to process the query.
 
 Each application running on the leaf nodes have a certain number of threads: each *thread* is called a *slot*.
 
-This is important to keep in mind: BigQuery service comes with 2000 slots available for processing your demands (while it's still possible to increase this value by getting in contact with Google representatives, if you know how to properly use BigQuery that chances of you needing that is extremely low).
+This is important to keep in mind: BigQuery service comes with 2000 slots available for processing your demands (while it's still possible to increase this value by getting in contact with Google representatives, if you know how to properly use BigQuery, chances of you needing that is extremely low).
 
 As we'll be studying soon, the less optimized are the queries we send against BigQuery, the more slots will be required for the processing step which may, eventually, stop the tool from working optimally and slower its operations.
 

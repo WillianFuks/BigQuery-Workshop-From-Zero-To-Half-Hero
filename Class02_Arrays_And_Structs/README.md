@@ -21,7 +21,7 @@ This tutorial covers the following:
 
 ## 1. Introduction
 
-As we've seen in Class 01, one of the biggest powers of BigQuery comes from operating nested data directly; the better we use this paradigm, the less operations will be performed in the shuffle phase, making it more effective, cheaper and faster.
+As we've seen in Class 01, one of the biggest powers of BigQuery comes from operating nested data directly, the better we use this paradigm, the less operations will be performed in the shuffle phase making it more effective, cheaper and faster.
 
 But also, as we've discussed, it gets some practice to use it. So, with no further ado, let's exercise it.
 
@@ -177,9 +177,9 @@ Or in JSON format:
 
 In just one row we already write all pages customers visited; no longer are we repeating `user_id` field for each page entry as before.
 
-For those who know about [norm forms](https://en.wikipedia.org/wiki/Database_normalization), BigQuery goes to the opposite direction: the more denormalized data is, the better; storage costs are not as bad as processing resources, if a row already contains everything it needs then shuffle phase becomes much more efficient.
+For those who know about [norm forms](https://en.wikipedia.org/wiki/Database_normalization), BigQuery goes to the opposite direction: the more denormalized data is, the better; storage costs are not as bad as processing costs; if a row already contains everything it needs then shuffle phase becomes much more efficient.
 
-Instead of running `JOIN`s operations with huge amounts of data we write everything required on each row and save the database the trouble of having to shuffle around up to teras or petabytes of data. 
+Instead of running `JOIN`s operations with huge amounts of data, we write everything required on each row and save the database the trouble of having to shuffle around up to teras or petabytes of data. 
 
 To start getting some acquaintance with this concept, let's exercise a bit. We recommend you to create files in the [answers](./answers) folder with the name of the task (notice we already have some files there but they are encrypted ;)!)
 
@@ -674,6 +674,10 @@ You should find this:
 
 This, more or less, finishes our introduction fo Structs and Arrays.
 
-We are not done yet though ;)! Let's put these concepts into practice in the next chapters to further understand their implementation.
+We are not done yet though ;)! Let's put these concepts into practice in the next chapters to further understand their implementation. We recommend you going to [cookbook](cookbook.md) where you'll find some queries we prepared for you as an example and guideline that you can use when working with BigQuery.
+
+We recommend studying each query and learning how the techniques are being used to process data.
+
+After that, you'll probably be ready to face a list of proposed [exercises](exercises.md) where you'll be able to test your acquired knowledge.
 
 
